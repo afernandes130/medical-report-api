@@ -34,7 +34,7 @@ namespace Serverless.ApiProxy.Controllers
             this.emailGateway = emailGateway;
         }
 
-        [HttpGet("login")]
+        [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] Login loginData)
         {
             try
