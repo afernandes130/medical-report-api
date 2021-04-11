@@ -44,7 +44,8 @@ namespace Serverless.ApiProxy
             services.AddAWSService<IAmazonDynamoDB>();
             services.AddSingleton<IHospitalizationGateway,HospitalizationGateway>();
             services.AddSingleton<IInteractionsGateway, InteractionsGateway>();
-            services.AddSingleton<ISimpleEmail, SimpleEmail>();
+            services.AddSingleton<ILoginGateway, LoginGateway>();
+            services.AddSingleton<IEmailGateway, EmailGateway>();
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "Hospitalization Service", Version = "v1" });

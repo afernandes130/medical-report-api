@@ -6,44 +6,44 @@ using System.Threading.Tasks;
 using Amazon.SimpleEmail;
 using Amazon.SimpleEmail.Model;
 using MimeKit;
+using Serverless.ApiProxy.Models;
 
 namespace Serverless.ApiProxy.Gateway
 {
-    public class SimpleEmail : ISimpleEmail
+    public class EmailGateway : IEmailGateway
     {
         private readonly IAmazonSimpleEmailService emailService;
-        private readonly string fromName = "Caio Ragazzi";
-        private readonly string from = "caio@caioragazzi.com";
+        private readonly string fromName = "Medical Report";
+        private readonly string from = "noreply@medicalreport.ga";
 
         private readonly string ToName = "Adriano Fernandes";
         private readonly string to = "afernandes130@hotmail.com";
-        private readonly string subject = "Teste Amazon SES";
+        private readonly string subject = "Medical Report - Dados de acesso";
 
         private readonly string htmlBody = @"<html>
             <head></head>
             <body>
-              <h1>Teste Amazon SES via API </h1>
-              <p>Esse email foi enviado com 
-                <a href='https://aws.amazon.com/ses/'>Amazon SES</a> usando como referencia
-                <a href='https://aws.amazon.com/sdk-for-net/'>
-                  AWS SDK para .NET</a>.</p>
+              <p>Você está recebendo os dados de acesso para acompanhamento do paciente <i>{0}</i></p>
+              <p> Url: {1} </p>
+              <p> Protocolo: {2} </p>
+              <p> Senha: {3} </p>
             </body>
             </html>";
 
-        public SimpleEmail(IAmazonSimpleEmailService emailService)
+        public EmailGateway(IAmazonSimpleEmailService emailService)
         {
             this.emailService = emailService;
         }
-        public Task SendEmailAsync()
+        public Task SendEmailAsync(EmailModel model)
         {
-
+            var body = string.Format(htmlBody, model.NamePatient,model.Url , model.LoginData.Protocol, model.LoginData.Password);
             var sendRequest = new SendEmailRequest
             {
                 Source = from,
                 Destination = new Destination
                 {
                     ToAddresses =
-                        new List<string> { to }
+                        new List<string> { model.To }
                 },
 
                 Message = new Message
@@ -54,7 +54,7 @@ namespace Serverless.ApiProxy.Gateway
                         Html = new Content
                         {
                             Charset = "UTF-8",
-                            Data = htmlBody
+                            Data = body
                         }
                     }
                 }

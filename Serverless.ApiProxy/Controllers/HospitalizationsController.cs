@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Amazon.DynamoDBv2.Model.Internal.MarshallTransformations;
 using Serverless.ApiProxy.Models;
 using Serverless.ApiProxy.Gateway;
+using Newtonsoft.Json.Linq;
 
 namespace Serverless.ApiProxy.Controllers
 {
@@ -16,11 +17,39 @@ namespace Serverless.ApiProxy.Controllers
     {
         private readonly IHospitalizationGateway hospitalizationGateway;
         private readonly IInteractionsGateway interactionsGateway;
+        private readonly ILoginGateway loginGateway;
 
-        public HospitalizationsController(IHospitalizationGateway hospitalizationGateway, IInteractionsGateway interactionsGateway)
+        private readonly IEmailGateway emailGateway;
+
+
+        public HospitalizationsController(
+            IHospitalizationGateway hospitalizationGateway, 
+            IInteractionsGateway interactionsGateway,
+            ILoginGateway loginGateway,
+            IEmailGateway emailGateway)
         {
             this.hospitalizationGateway = hospitalizationGateway;
             this.interactionsGateway = interactionsGateway;
+            this.loginGateway = loginGateway;
+            this.emailGateway = emailGateway;
+        }
+
+        [HttpGet("login")]
+        public async Task<IActionResult> Login([FromBody] Login loginData)
+        {
+            try
+            {
+                var result = await loginGateway.Get(loginData);
+                if (!string.IsNullOrEmpty(result))
+                {
+                    return Ok(result);
+                }
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex);
+            }
         }
 
         [HttpGet("{idHospitalization}")]
@@ -28,7 +57,12 @@ namespace Serverless.ApiProxy.Controllers
         {
             try
             {
-                return Ok(await hospitalizationGateway.Get(idHospitalization));
+                var result = await hospitalizationGateway.Get(idHospitalization);
+                if (result != null)
+                {
+                    return Ok(result);
+                }
+                return NotFound();
             }
             catch (Exception ex)
             {
@@ -41,8 +75,10 @@ namespace Serverless.ApiProxy.Controllers
         {
             try
             {
-                var result = await hospitalizationGateway.Insert(jsonHospitalization);
-                return Ok(new {url = $"https://renan-saraiva.github.io/medical-report-app/{result}"});
+                //var result = await hospitalizationGateway.Insert(jsonHospitalization);
+                var result = await SendEmailAndInsertHospitalization(jsonHospitalization);
+               
+                return Ok(new {url = $"https://renan-saraiva.github.io/medical-report-app/hospitalizations/{result}"});
             }
             catch (Exception ex)
             {
@@ -56,7 +92,12 @@ namespace Serverless.ApiProxy.Controllers
         {
             try
             {
-                return Ok(await interactionsGateway.Get(idHospitalization));
+                var result = await interactionsGateway.Get(idHospitalization);
+                if (result.Count > 0)
+                {
+                    return Ok(result);
+                }
+                return NotFound();
             }
             catch (Exception ex)
             {
@@ -78,5 +119,60 @@ namespace Serverless.ApiProxy.Controllers
             }
         }
 
+        public async Task<Guid> SendEmailAndInsertHospitalization(object jsonHospitalization)
+        {
+            var hospitalization = JObject.Parse(jsonHospitalization.ToString() ?? string.Empty);
+
+            var patient = hospitalization["patient"];
+
+            var login = new Login()
+            {
+                Protocol = GeneratorTypes(Type.Protocol),
+                Password = GeneratorTypes(Type.Password)
+            };
+
+            var model = new EmailModel()
+            {
+                To = hospitalization["contact"].ToString(),
+                NamePatient = patient["name"].ToString(),
+                LoginData = login
+            };
+
+            
+            var result =  await hospitalizationGateway.Insert(jsonHospitalization);
+            await loginGateway.Insert(login, result);
+            model.Url = $"https://renan-saraiva.github.io/medical-report-app/login";
+            await emailGateway.SendEmailAsync(model);
+
+            return result;
+        }
+
+        private string GeneratorTypes(Type type )
+        {
+            string chars = string.Empty;
+            if (type == Type.Password)
+            {
+                chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ0123456789!@$?_ - ";
+            }
+            if (type == Type.Protocol)
+            {
+                chars = "0123456789";
+            }
+
+            var pass = string.Empty;
+            Random random = new Random();
+            for (int f = 0; f < 8; f++)
+            {
+                pass = pass + chars.Substring(random.Next(0, chars.Length - 1), 1);
+            }
+
+            return pass; 
+        }
+
+        enum Type
+        {
+            Protocol,
+            Password
+        }
     }
 }
